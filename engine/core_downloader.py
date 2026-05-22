@@ -45,14 +45,17 @@ class CoreDownloader:
             'writethumbnail': self.config.get("embed_thumbnail", True),
             'writedescription': self.config.get("write_description", False),
             'keepvideo': self.config.get("keep_video", False),
+            'overwrites': self.config.get("allow_overwrite", False),
             'postprocessors': [],
             'noplaylist': False 
         }
 
+        # Enable retries
         if self.config.get("auto_retry", True):
             ydl_opts['retries'] = 5
             ydl_opts['fragment_retries'] = 5
 
+        # Playlist indexing
         try:
             p_start = self.config.get("playlist_start", "1")
             if p_start.isdigit(): ydl_opts['playliststart'] = int(p_start)
@@ -61,6 +64,7 @@ class CoreDownloader:
         except ValueError:
             pass
 
+        # Network limits
         speed = self.config.get("speed_limit", "Unlimited")
         speed_map = {"10 MB/s": 10000000, "5 MB/s": 5000000, "1 MB/s": 1000000, "500 KB/s": 500000}
         if speed in speed_map: ydl_opts['ratelimit'] = speed_map[speed]
@@ -71,16 +75,19 @@ class CoreDownloader:
         if self.config.get("force_ipv4", False):
             ydl_opts['source_address'] = '0.0.0.0'
 
+        # Cookies
         browser = self.config.get("browser_cookie", "None")
         if browser != "None":
             ydl_opts['cookiesfrombrowser'] = (browser.lower(), )
 
+        # SponsorBlock
         if self.config.get("sponsorblock", False):
             ydl_opts['postprocessors'].append({
                 'key': 'SponsorBlock',
                 'categories': ['sponsor', 'intro', 'outro', 'interaction', 'selfpromo']
             })
 
+        # Subtitle logic
         if self.config.get("download_subs", False) or self.config.get("burn_subs", False):
             ydl_opts['writesubtitles'] = True
             ydl_opts['subtitleslangs'] = ['en', 'all'] 
@@ -88,6 +95,7 @@ class CoreDownloader:
             if not self.config.get("burn_subs", False):
                 ydl_opts['postprocessors'].append({'key': 'FFmpegEmbedSubtitle'})
 
+        # Format/Audio Normalization
         format_choice = self.config.get("format_choice", "Best Video (MP4)")
         if "Audio Only" in format_choice:
             ydl_opts['format'] = 'bestaudio/best'
@@ -100,7 +108,6 @@ class CoreDownloader:
                 'preferredcodec': codec,
                 'preferredquality': '192',
             })
-            
             if self.config.get("normalize_audio", False):
                 ydl_opts['postprocessors'].append({
                     'key': 'Exec',
@@ -117,11 +124,13 @@ class CoreDownloader:
             ydl_opts['format'] = q_map.get(self.config.get("quality_choice", "Best Available"), "best")
             ydl_opts['postprocessors'].append({'key': 'FFmpegVideoConvertor', 'preferedformat': 'mp4'})
 
+        # Metadata
         if self.config.get("embed_thumbnail", True):
             ydl_opts['postprocessors'].append({'key': 'EmbedThumbnail'})
         if self.config.get("embed_metadata", True):
             ydl_opts['postprocessors'].append({'key': 'FFmpegMetadata'})
 
+        # Execution
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 for target_url in urls:
@@ -129,22 +138,16 @@ class CoreDownloader:
                     self.logger.debug(f"\n[SYSTEM] Connecting to target: {target_url}\n")
                     
                     info = ydl.extract_info(target_url, download=True)
-                    
                     videos = info.get('entries', [info])
+                    
                     for video in videos:
                         if not video: continue
+                        ext = 'wav' if 'WAV' in format_choice else ('flac' if 'FLAC' in format_choice else ('mp3' if 'Audio Only' in format_choice else 'mp4'))
                         
-                        ext = 'mp4'
-                        if "Audio Only" in format_choice:
-                            if 'WAV' in format_choice: ext = 'wav'
-                            elif 'FLAC' in format_choice: ext = 'flac'
-                            else: ext = 'mp3'
-
                         raw_filename = f"{video.get('title', 'video')}.{ext}"
                         safe_filename = clean_filename(raw_filename)
                         full_path = os.path.join(out_path, safe_filename)
                         
-                        # Apply rule only if toggled
                         if self.config.get("enable_cleanup", True):
                             apply_cosmic_rule(full_path, self.logger)
                         
