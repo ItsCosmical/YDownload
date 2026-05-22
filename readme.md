@@ -23,5 +23,7 @@ Here are the features:
 * Embed thumbnail
 * embed chapters/tags
 * Playlist index targeting (start/end video numbers)
+
+
 Did i mention; All of these can be turned on or off and it has a mass link processer?
 Lastly, you can download videos, shorts, playlists, or the entire channel! (or the channel's shorts or playlists)
